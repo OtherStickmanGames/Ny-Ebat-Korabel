@@ -11,17 +11,11 @@ Shader "Custom/Quest3D_Style_Water"
         _FoamColor ("Foam Color", Color) = (1, 1, 1, 1)
         _FoamDistance ("Foam Distance", Float) = 0.5
         
-        [Header(Surface Ripples (Normals))]
-        _NormalMap1 ("Normal Map 1", 2D) = "bump" {}
-        _NormalMap2 ("Normal Map 2", 2D) = "bump" {}
-        _NormalSpeed1 ("Scroll Speed 1 (X,Y)", Vector) = (0.05, 0.05, 0, 0)
-        _NormalSpeed2 ("Scroll Speed 2 (X,Y)", Vector) = (-0.03, 0.04, 0, 0)
-        _NormalScale ("Normal Strength", Range(0, 2)) = 1.0
-
-        [Header(Geometry Waves)]
-        _WaveSpeed ("Wave Speed", Float) = 1.0
-        _WaveHeight ("Wave Height", Float) = 0.15
-        _WaveFrequency ("Wave Frequency", Float) = 2.0
+        [Header(Procedural Waves (No Textures!))]
+        _WaveSpeed ("Global Wave Speed", Float) = 1.0
+        _WaveScale ("Global Wave Scale", Float) = 0.5
+        _WaveStrength ("Geometry Wave Height", Float) = 0.2
+        _RippleStrength ("Ripple Normal Strength", Float) = 1.5
         
         [Header(Lighting)]
         _Glossiness ("Smoothness", Range(0,1)) = 0.95
@@ -43,10 +37,8 @@ Shader "Custom/Quest3D_Style_Water"
 
         struct Input
         {
-            float2 uv_NormalMap1;
-            float2 uv_NormalMap2;
             float4 screenPos;
-            float3 viewDir;
+            float3 worldPos;
         };
 
         fixed4 _ColorShallow;
@@ -56,27 +48,64 @@ Shader "Custom/Quest3D_Style_Water"
         fixed4 _FoamColor;
         float _FoamDistance;
         
-        sampler2D _NormalMap1;
-        sampler2D _NormalMap2;
-        float4 _NormalSpeed1;
-        float4 _NormalSpeed2;
-        float _NormalScale;
-        
         float _WaveSpeed;
-        float _WaveHeight;
-        float _WaveFrequency;
+        float _WaveScale;
+        float _WaveStrength;
+        float _RippleStrength;
         
         half _Glossiness;
         half _Metallic;
 
+        // Математический расчет волн и производных (нормалей)
+        float CalculateWaves(float2 pos, float time, out float2 derivatives)
+        {
+            float height = 0.0;
+            derivatives = float2(0.0, 0.0);
+            
+            // 4 математические волны в разных направлениях и с разными частотами
+            float2 dirs[4] = {
+                normalize(float2(1.0, 0.5)),
+                normalize(float2(-0.7, 0.7)),
+                normalize(float2(0.2, -0.9)),
+                normalize(float2(-0.5, -0.5))
+            };
+            float frequencies[4] = {1.0, 2.3, 3.7, 5.1};
+            float amplitudes[4] = {0.5, 0.25, 0.12, 0.06};
+            float speeds[4] = {1.2, 1.5, 2.1, 2.5};
+
+            for (int i = 0; i < 4; i++)
+            {
+                // Позиция умноженная на направление и масштаб
+                float x = dot(dirs[i], pos) * frequencies[i] * _WaveScale;
+                float t = time * speeds[i] * _WaveSpeed;
+                
+                float sinVal, cosVal;
+                sincos(x + t, sinVal, cosVal);
+                
+                // Синус дает высоту волны
+                height += sinVal * amplitudes[i];
+                
+                // Косинус дает производную (наклон волны) для расчета нормалей
+                derivatives += dirs[i] * (cosVal * amplitudes[i] * frequencies[i] * _WaveScale);
+            }
+            
+            return height;
+        }
+
         void vert (inout appdata_full v) {
-            float t = _Time.y * _WaveSpeed;
-            float wave = sin(v.vertex.x * _WaveFrequency + t) + cos(v.vertex.z * _WaveFrequency + t);
-            v.vertex.y += wave * _WaveHeight;
+            float2 derivatives;
+            // Считаем волны в мировых координатах, чтобы они были бесконечными
+            float2 worldXZ = mul(unity_ObjectToWorld, v.vertex).xz;
+            
+            float h = CalculateWaves(worldXZ, _Time.y, derivatives);
+            
+            // Применяем высоту к вершине (геометрическая волна)
+            v.vertex.y += h * _WaveStrength;
         }
 
         void surf (Input IN, inout SurfaceOutputStandard o)
         {
+            // 1. Глубина и Пена (как и было)
             float waterSurfaceDepth = IN.screenPos.w;
             float sceneZ = LinearEyeDepth(SAMPLE_DEPTH_TEXTURE_PROJ(_CameraDepthTexture, UNITY_PROJ_COORD(IN.screenPos)));
             float depthDifference = sceneZ - waterSurfaceDepth;
@@ -86,23 +115,21 @@ Shader "Custom/Quest3D_Style_Water"
             
             float foamFactor = 1.0 - saturate(depthDifference / _FoamDistance);
             foamFactor = pow(foamFactor, 2.0);
-            
             fixed4 finalColor = lerp(waterColor, _FoamColor, foamFactor);
             
-            float2 uv1 = IN.uv_NormalMap1 + _Time.y * _NormalSpeed1.xy;
-            float2 uv2 = IN.uv_NormalMap2 + _Time.y * _NormalSpeed2.xy;
+            // 2. ПРОЦЕДУРНЫЕ НОРМАЛИ (Магия Quest3D)
+            float2 derivatives;
+            // Пересчитываем формулы волн для каждого пикселя для идеальной резкости ряби
+            CalculateWaves(IN.worldPos.xz, _Time.y, derivatives);
             
-            float3 n1 = UnpackNormal(tex2D(_NormalMap1, uv1));
-            float3 n2 = UnpackNormal(tex2D(_NormalMap2, uv2));
-            
-            float3 finalNormal = normalize(n1 + n2);
-            finalNormal.xy *= _NormalScale;
-            
+            // Конструируем Normal Map математически из производных!
+            float3 proceduralNormal = float3(-derivatives.x * _RippleStrength, -derivatives.y * _RippleStrength, 1.0);
+            proceduralNormal = normalize(proceduralNormal);
+
             o.Albedo = finalColor.rgb;
-            o.Normal = finalNormal;
+            o.Normal = proceduralNormal; // Применяем чисто математическую рябь
             o.Metallic = _Metallic;
             o.Smoothness = _Glossiness;
-            
             o.Alpha = saturate(finalColor.a + foamFactor);
         }
         ENDCG
