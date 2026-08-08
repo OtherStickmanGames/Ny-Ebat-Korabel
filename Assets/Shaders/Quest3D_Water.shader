@@ -79,13 +79,36 @@ Shader "Custom/Quest3D_Style_Water"
             return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
         }
 
+        // Fractional Brownian Motion (FBM) с 3 октавами и поворотами
+        float fbm(float2 p) {
+            float value = 0.0;
+            float amplitude = 0.5;
+            // Матрица поворота для слома осевой симметрии между октавами
+            float2x2 rot = float2x2(0.8, -0.6, 0.6, 0.8); 
+            
+            // Октава 1
+            value += amplitude * noise(p);
+            p = mul(rot, p) * 2.0;
+            amplitude *= 0.5;
+            
+            // Октава 2
+            value += amplitude * noise(p);
+            p = mul(rot, p) * 2.0;
+            amplitude *= 0.5;
+            
+            // Октава 3
+            value += amplitude * noise(p);
+            
+            return value;
+        }
+
         // === РАСЧЕТ ВЫСОТЫ ВОДЫ ===
         float GetHeight(float2 pos, float time) 
         {
-            // 1. DOMAIN WARPING (Искажение пространства)
-            // Мы "изгибаем" мировые координаты с помощью шума, прежде чем строить волны.
-            // Именно это полностью убивает эффект тайлинга (повторения квадратов).
-            float2 warp = float2(noise(pos * 0.1), noise(pos * 0.1 + 100.0));
+            // 1. FBM DOMAIN WARPING (Искажение пространства)
+            // Использование FBM вместо обычного шума дает фрактальное искажение, 
+            // которое полностью ломает сетку синусоид на любых масштабах.
+            float2 warp = float2(fbm(pos * 0.1), fbm(pos * 0.1 + 100.0));
             pos += warp * 5.0; // Сила искажения
             
             // Направления волн сделаны иррациональными
@@ -105,8 +128,8 @@ Shader "Custom/Quest3D_Style_Water"
             h += sin(dot(d3, pos) * f3 * _WaveScale + time * s3 * _WaveSpeed) * a3;
             h += sin(dot(d4, pos) * f4 * _WaveScale + time * s4 * _WaveSpeed) * a4;
             
-            // Добавляем мелкую высокочастотную хаотичную рябь прямо поверх синусоид
-            h += noise(pos * 2.0 - time * 0.5) * 0.05;
+            // Добавляем мелкую высокочастотную FBM-рябь поверх волн
+            h += fbm(pos * 2.0 - time * 0.5) * 0.1;
             
             return h;
         }
