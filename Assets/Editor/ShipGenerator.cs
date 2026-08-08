@@ -12,76 +12,73 @@ public class ShipGenerator : EditorWindow
 
         // 1. Создаем корень
         GameObject shipRoot = new GameObject("Brig_Ship");
-        shipRoot.transform.position = new Vector3(0, 1.5f, 0);
+        shipRoot.transform.position = new Vector3(0, 2f, 0);
         
         Rigidbody rb = shipRoot.AddComponent<Rigidbody>();
-        rb.mass = 3000f; 
+        rb.mass = 5000f; // Реалистичный вес
         rb.drag = 0.5f;
         rb.angularDrag = 1.0f;
         
         // 2. Материалы
         if (!AssetDatabase.IsValidFolder("Assets/Materials")) AssetDatabase.CreateFolder("Assets", "Materials");
-        Material woodMat = CreateOrLoadMaterial("Assets/Materials/Wood.mat", new Color(0.35f, 0.20f, 0.10f));
-        Material sailMat = CreateOrLoadMaterial("Assets/Materials/Sail.mat", new Color(0.9f, 0.9f, 0.85f));
-        Material darkWoodMat = CreateOrLoadMaterial("Assets/Materials/DarkWood.mat", new Color(0.2f, 0.1f, 0.05f));
+        Material woodMat = CreateOrLoadMaterial("Assets/Materials/Wood.mat", new Color(0.30f, 0.18f, 0.10f));
+        Material darkWoodMat = CreateOrLoadMaterial("Assets/Materials/DarkWood.mat", new Color(0.15f, 0.08f, 0.04f));
+        Material sailMat = CreateOrLoadMaterial("Assets/Materials/Sail.mat", new Color(0.92f, 0.90f, 0.85f));
+        
+        // Добавляем текстуру "грязи" и шероховатости через настройки материала
+        woodMat.SetFloat("_Glossiness", 0.05f);
+        sailMat.SetFloat("_Glossiness", 0.0f);
 
-        // 3. ПРОЦЕДУРНЫЙ КОРПУС (Математическая генерация меша)
-        GameObject hull = new GameObject("ProceduralHull");
+        // 3. СВЕРХ-РЕАЛИСТИЧНЫЙ КОРПУС (Naval Architecture Math)
+        GameObject hull = new GameObject("RealisticHull");
         hull.transform.parent = shipRoot.transform;
         hull.transform.localPosition = Vector3.zero;
         
         MeshFilter hullMf = hull.AddComponent<MeshFilter>();
-        hullMf.sharedMesh = GenerateProceduralHull(12f, 4f, 2.5f, 20, 10); // Длина 12, Ширина 4, Глубина 2.5
+        // Генерируем корпус: Длина 18, Ширина 5.5, Осадка (Глубина) 3, Сегменты 40х20
+        hullMf.sharedMesh = GenerateRealisticHull(18f, 5.5f, 3f, 40, 20); 
         
         MeshRenderer hullMr = hull.AddComponent<MeshRenderer>();
         hullMr.sharedMaterial = woodMat;
         
         MeshCollider hullCol = hull.AddComponent<MeshCollider>();
         hullCol.sharedMesh = hullMf.sharedMesh;
-        hullCol.convex = true; // Для Rigidbody нужен выпуклый коллайдер
+        hullCol.convex = true;
 
-        // 4. Мачты (Оставим цилиндры, так как мачта математически и есть цилиндр)
-        GameObject mastsGroup = new GameObject("Masts");
-        mastsGroup.transform.parent = shipRoot.transform;
-        mastsGroup.transform.localPosition = Vector3.zero;
+        // 4. МАЧТЫ И ПАРУСА (Составные, как у реальных кораблей)
+        GameObject riggingGroup = new GameObject("Rigging");
+        riggingGroup.transform.parent = shipRoot.transform;
+        riggingGroup.transform.localPosition = Vector3.zero;
 
-        CreatePart("MainMast", PrimitiveType.Cylinder, mastsGroup.transform, new Vector3(0, 4f, -1.5f), new Vector3(0.3f, 4f, 0.3f), darkWoodMat);
-        CreatePart("MainYard", PrimitiveType.Cylinder, mastsGroup.transform, new Vector3(0, 5.5f, -1.3f), new Vector3(0.1f, 2.5f, 0.1f), darkWoodMat).transform.localRotation = Quaternion.Euler(0, 0, 90);
+        // Бушприт (Bowsprit - передняя наклонная мачта)
+        CreatePart("Bowsprit", PrimitiveType.Cylinder, riggingGroup.transform, new Vector3(0, 2.5f, 9.5f), new Vector3(0.2f, 3.5f, 0.2f), darkWoodMat).transform.localRotation = Quaternion.Euler(65, 0, 0);
         
-        CreatePart("ForeMast", PrimitiveType.Cylinder, mastsGroup.transform, new Vector3(0, 3.5f, 2.5f), new Vector3(0.25f, 3.5f, 0.25f), darkWoodMat);
-        CreatePart("ForeYard", PrimitiveType.Cylinder, mastsGroup.transform, new Vector3(0, 4.5f, 2.7f), new Vector3(0.1f, 2f, 0.1f), darkWoodMat).transform.localRotation = Quaternion.Euler(0, 0, 90);
+        // Фок-мачта (Foremast)
+        BuildMast(riggingGroup.transform, "Foremast", new Vector3(0, 1.5f, 4.5f), 10f, 0.35f, darkWoodMat, sailMat);
+        
+        // Грот-мачта (Mainmast) - самая высокая
+        BuildMast(riggingGroup.transform, "Mainmast", new Vector3(0, 1.0f, -2.0f), 12f, 0.4f, darkWoodMat, sailMat);
 
-        // 5. ПРОЦЕДУРНЫЕ ПАРУСА (Математическая генерация ткани, надутой ветром)
-        GameObject sailsGroup = new GameObject("Sails");
-        sailsGroup.transform.parent = shipRoot.transform;
-        sailsGroup.transform.localPosition = Vector3.zero;
+        // Бизань или Спанкер (задний косой парус)
+        GameObject spanker = new GameObject("Spanker_Sail");
+        spanker.transform.parent = riggingGroup.transform;
+        spanker.transform.localPosition = new Vector3(0, 4.5f, -4.5f);
+        spanker.transform.localRotation = Quaternion.Euler(0, 90, 0); // Косой парус вдоль оси Z
+        spanker.AddComponent<MeshFilter>().sharedMesh = GenerateProceduralSail(4f, 5f, 0.5f, 15);
+        spanker.AddComponent<MeshRenderer>().sharedMaterial = sailMat;
 
-        // Грот-парус
-        GameObject mainSail = new GameObject("MainSail");
-        mainSail.transform.parent = sailsGroup.transform;
-        mainSail.transform.localPosition = new Vector3(0, 4f, -1.0f);
-        mainSail.AddComponent<MeshFilter>().sharedMesh = GenerateProceduralSail(5f, 4f, 1.5f, 10);
-        mainSail.AddComponent<MeshRenderer>().sharedMaterial = sailMat;
-
-        // Фок-парус
-        GameObject foreSail = new GameObject("ForeSail");
-        foreSail.transform.parent = sailsGroup.transform;
-        foreSail.transform.localPosition = new Vector3(0, 3f, 3.0f);
-        foreSail.AddComponent<MeshFilter>().sharedMesh = GenerateProceduralSail(4f, 3f, 1.2f, 10);
-        foreSail.AddComponent<MeshRenderer>().sharedMaterial = sailMat;
-
-        // Очищаем лишние коллайдеры с примитивов (мачт), чтобы не ломать центр масс
-        foreach (Collider col in mastsGroup.GetComponentsInChildren<Collider>()) DestroyImmediate(col);
+        // Очистка коллайдеров такелажа
+        foreach (Collider col in riggingGroup.GetComponentsInChildren<Collider>()) DestroyImmediate(col);
 
         Selection.activeGameObject = shipRoot;
-        Debug.Log("Procedural Brig Ship generated! Look at that beautiful math!");
+        Debug.Log("Ultra-Realistic Procedural Brig Ship generated!");
     }
 
-    // === ПРОЦЕДУРНАЯ ГЕНЕРАЦИЯ КОРПУСА ===
-    static Mesh GenerateProceduralHull(float length, float width, float depth, int segZ, int segU)
+    // === ПРОВИНУТАЯ ГЕНЕРАЦИЯ КОРПУСА ===
+    static Mesh GenerateRealisticHull(float length, float width, float depth, int segZ, int segU)
     {
         Mesh m = new Mesh();
-        m.name = "HullMesh";
+        m.name = "RealisticHullMesh";
         
         int numVerts = (segZ + 1) * (segU + 1);
         Vector3[] vertices = new Vector3[numVerts];
@@ -89,29 +86,60 @@ public class ShipGenerator : EditorWindow
         
         for (int z = 0, i = 0; z <= segZ; z++)
         {
-            float tz = z / (float)segZ; // 0 to 1
-            float nz = (tz - 0.5f) * 2f; // -1 (Stern) to 1 (Bow)
+            float tz = z / (float)segZ; 
+            float nz = (tz - 0.5f) * 2f; // -1 (Корма) до 1 (Нос)
             
-            // Форма лодки (вид сверху): сзади шире, спереди острый нос (парабола)
-            float profileWidth = (nz < 0) ? (1.0f + nz*0.2f) : (1.0f - nz * nz);
+            // 1. Sheer (Изгиб палубы) - палуба задирается на носу и корме
+            float sheer = (nz > 0) ? Mathf.Pow(nz, 2.5f) * 1.8f : Mathf.Pow(-nz, 2.0f) * 1.5f;
             
-            // Форма киля (вид сбоку): приподнимается к носу и корме
-            float profileDepth = depth * (1.0f - Mathf.Pow(nz, 4f));
+            // 2. Форма ватерлинии (Ширина корпуса)
+            float profileWidth;
+            if (nz > 0)
+                profileWidth = 1.0f - Mathf.Pow(nz, 1.8f); // Острый, слегка вогнутый нос
+            else
+                profileWidth = 1.0f - Mathf.Pow(-nz, 4.0f) * 0.4f; // Тупая, широкая корма
+                
+            // 3. Профиль киля
+            float profileDepth = depth * (1.0f - Mathf.Pow(Mathf.Abs(nz), 3.0f));
             
             for (int u = 0; u <= segU; u++, i++)
             {
-                float tu = u / (float)segU; // 0 to 1 (from left rail down to keel up to right rail)
-                float nu = (tu - 0.5f) * 2f; // -1 to 1
+                float tu = u / (float)segU; 
+                float nu = (tu - 0.5f) * 2f; // -1 (Левый борт) до 1 (Правый борт)
                 
-                // U-образный профиль днища
-                float curve = 1.0f - Mathf.Pow(1.0f - Mathf.Abs(nu), 1.5f);
+                float absNu = Mathf.Abs(nu);
                 
-                float vx = nu * (width / 2f) * profileWidth;
-                float vy = -profileDepth * (1.0f - curve);
+                // 4. Tumblehome (Завал бортов внутрь)
+                float tumblehome = (absNu > 0.8f) ? (1.0f - (absNu - 0.8f)*0.5f) : 1.0f;
+                
+                // Форма сечения корпуса (бочкообразная)
+                float hFactor = 1.0f - Mathf.Pow(1.0f - absNu, 1.8f);
+                
+                float vx = Mathf.Sign(nu) * hFactor * (width / 2f) * profileWidth * tumblehome;
+                
+                float vy;
+                if (absNu > 0.95f) // Бортики палубы (Bulwarks)
+                {
+                    vy = sheer + 1.2f; 
+                }
+                else if (absNu > 0.9f) // Сама палуба
+                {
+                    vy = sheer;
+                }
+                else // Днище
+                {
+                    float v_interp = absNu / 0.9f; 
+                    float curve = Mathf.Pow(v_interp, 0.6f); 
+                    vy = Mathf.Lerp(-profileDepth, sheer, curve);
+                }
+                
                 float vz = nz * (length / 2f);
                 
-                // Делаем плоскую корму, "срезая" заднюю часть
-                if (nz == -1f) vz += 0.5f; 
+                // Скошенный транец (корма)
+                if (nz < -0.9f && vy > -1f) vz += (vy + 1f) * 0.3f;
+                
+                // Бушпритная площадка (выступ на носу)
+                if (nz > 0.95f && vy > sheer) vz += 0.5f;
 
                 vertices[i] = new Vector3(vx, vy, vz);
                 uvs[i] = new Vector2(tu, tz);
@@ -125,12 +153,50 @@ public class ShipGenerator : EditorWindow
         return m;
     }
 
-    // === ПРОЦЕДУРНАЯ ГЕНЕРАЦИЯ ПАРУСА (С ВЕТРОМ) ===
+    // === СОСТАВНАЯ МАЧТА ===
+    static void BuildMast(Transform parent, string name, Vector3 pos, float height, float baseRad, Material woodMat, Material sailMat)
+    {
+        GameObject mastGroup = new GameObject(name);
+        mastGroup.transform.parent = parent;
+        mastGroup.transform.localPosition = pos;
+
+        // Реальные корабли строятся из трех секций мачт
+        // 1. Нижняя мачта (Lower Mast)
+        CreatePart("LowerMast", PrimitiveType.Cylinder, mastGroup.transform, new Vector3(0, height*0.25f, 0), new Vector3(baseRad, height*0.25f, baseRad), woodMat);
+        
+        // Марсовая площадка (Crows Nest / Top)
+        CreatePart("CrowsNest", PrimitiveType.Cylinder, mastGroup.transform, new Vector3(0, height*0.5f, 0), new Vector3(baseRad*5f, 0.05f, baseRad*5f), woodMat);
+        
+        // 2. Стеньга (Topmast)
+        CreatePart("TopMast", PrimitiveType.Cylinder, mastGroup.transform, new Vector3(0, height*0.75f, 0.1f), new Vector3(baseRad*0.7f, height*0.2f, baseRad*0.7f), woodMat);
+        
+        // 3. Брам-стеньга (Topgallant Mast)
+        CreatePart("TopgallantMast", PrimitiveType.Cylinder, mastGroup.transform, new Vector3(0, height*1.05f, 0.15f), new Vector3(baseRad*0.4f, height*0.1f, baseRad*0.4f), woodMat);
+        
+        // Многоуровневые паруса
+        CreateYardAndSail(mastGroup.transform, "Course", height*0.42f, baseRad*20f, height*0.35f, sailMat, woodMat);
+        CreateYardAndSail(mastGroup.transform, "Topsail", height*0.85f, baseRad*15f, height*0.30f, sailMat, woodMat);
+        CreateYardAndSail(mastGroup.transform, "Topgallant", height*1.12f, baseRad*10f, height*0.20f, sailMat, woodMat);
+    }
+    
+    static void CreateYardAndSail(Transform parent, string name, float yPos, float width, float height, Material sailMat, Material woodMat)
+    {
+        // Рея (Yard - перекладина)
+        CreatePart(name + "_Yard", PrimitiveType.Cylinder, parent, new Vector3(0, yPos, -0.2f), new Vector3(0.08f, width*0.5f, 0.08f), woodMat).transform.localRotation = Quaternion.Euler(0, 0, 90);
+        
+        // Процедурный надутый парус
+        GameObject sail = new GameObject(name + "_Sail");
+        sail.transform.parent = parent;
+        sail.transform.localPosition = new Vector3(0, yPos - height*0.5f, -0.3f);
+        sail.AddComponent<MeshFilter>().sharedMesh = GenerateProceduralSail(width, height, height*0.4f, 15);
+        sail.AddComponent<MeshRenderer>().sharedMaterial = sailMat;
+    }
+
+    // === ПРОЦЕДУРНАЯ ГЕНЕРАЦИЯ ПАРУСА ===
     static Mesh GenerateProceduralSail(float width, float height, float windDepth, int segments)
     {
         Mesh m = new Mesh();
         m.name = "SailMesh";
-        
         int numVerts = (segments + 1) * (segments + 1);
         Vector3[] vertices = new Vector3[numVerts];
         Vector2[] uvs = new Vector2[numVerts];
@@ -145,12 +211,12 @@ public class ShipGenerator : EditorWindow
                 float vx = (tx - 0.5f) * width;
                 float vy = (ty - 0.5f) * height;
                 
-                // Математическая кривая надутого паруса (синусоида по обеим осям)
+                // Кривая надутого паруса
                 float bulge = Mathf.Sin(tx * Mathf.PI) * Mathf.Sin(ty * Mathf.PI);
-                float vz = bulge * windDepth; // Парус выгибается вперед
+                float vz = bulge * windDepth; 
                 
-                // Нижние углы паруса стягиваются к центру (как настоящие снасти)
-                if (ty < 0.2f) vx *= Mathf.Lerp(0.6f, 1.0f, ty / 0.2f);
+                // Стягивание нижних углов (шкаторин)
+                if (ty < 0.2f) vx *= Mathf.Lerp(0.7f, 1.0f, ty / 0.2f);
                 
                 vertices[i] = new Vector3(vx, vy, vz);
                 uvs[i] = new Vector2(tx, ty);
@@ -159,7 +225,7 @@ public class ShipGenerator : EditorWindow
         
         m.vertices = vertices;
         m.uv = uvs;
-        m.triangles = GenerateGridTriangles(segments, segments, true); // true для двустороннего рендера
+        m.triangles = GenerateGridTriangles(segments, segments, true); 
         m.RecalculateNormals();
         return m;
     }
@@ -172,22 +238,12 @@ public class ShipGenerator : EditorWindow
         {
             for (int x = 0; x < segX; x++, ti += 6, vi++)
             {
-                tris[ti] = vi;
-                tris[ti+1] = vi + segX + 1;
-                tris[ti+2] = vi + 1;
-                tris[ti+3] = vi + 1;
-                tris[ti+4] = vi + segX + 1;
-                tris[ti+5] = vi + segX + 2;
-                
+                tris[ti] = vi; tris[ti+1] = vi + segX + 1; tris[ti+2] = vi + 1;
+                tris[ti+3] = vi + 1; tris[ti+4] = vi + segX + 1; tris[ti+5] = vi + segX + 2;
                 if (doubleSided)
                 {
-                    // Обратная сторона паруса
-                    tris[ti+6] = vi;
-                    tris[ti+7] = vi + 1;
-                    tris[ti+8] = vi + segX + 1;
-                    tris[ti+9] = vi + 1;
-                    tris[ti+10] = vi + segX + 2;
-                    tris[ti+11] = vi + segX + 1;
+                    tris[ti+6] = vi; tris[ti+7] = vi + 1; tris[ti+8] = vi + segX + 1;
+                    tris[ti+9] = vi + 1; tris[ti+10] = vi + segX + 2; tris[ti+11] = vi + segX + 1;
                 }
             }
         }
@@ -205,7 +261,7 @@ public class ShipGenerator : EditorWindow
     static Material CreateOrLoadMaterial(string path, Color color)
     {
         Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
-        if (mat == null) { mat = new Material(Shader.Find("Standard")); mat.color = color; mat.SetFloat("_Glossiness", 0.1f); AssetDatabase.CreateAsset(mat, path); }
+        if (mat == null) { mat = new Material(Shader.Find("Standard")); mat.color = color; AssetDatabase.CreateAsset(mat, path); }
         else { mat.color = color; }
         return mat;
     }
