@@ -48,6 +48,17 @@ public class WaterSceneSetup : EditorWindow
     [MenuItem("Tools/Setup Water Test Scene")]
     public static void SetupScene()
     {
+        // 0. Cleanup previous test objects to prevent duplicates
+        string[] testObjectNames = { "WaterSurface", "PoolBottom", "Island_Sphere", "Shore_Slope" };
+        foreach (string objName in testObjectNames)
+        {
+            GameObject existing;
+            while ((existing = GameObject.Find(objName)) != null)
+            {
+                DestroyImmediate(existing);
+            }
+        }
+
         // 1. Create High-Density Water Plane
         GameObject waterObj = new GameObject("WaterSurface");
         waterObj.transform.position = Vector3.zero;
