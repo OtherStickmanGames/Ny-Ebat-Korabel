@@ -62,32 +62,43 @@ Shader "Custom/Quest3D_Style_Water"
             float height = 0.0;
             derivatives = float2(0.0, 0.0);
             
-            // 4 математические волны в разных направлениях и с разными частотами
-            float2 dirs[4] = {
-                normalize(float2(1.0, 0.5)),
-                normalize(float2(-0.7, 0.7)),
-                normalize(float2(0.2, -0.9)),
-                normalize(float2(-0.5, -0.5))
-            };
-            float frequencies[4] = {1.0, 2.3, 3.7, 5.1};
-            float amplitudes[4] = {0.5, 0.25, 0.12, 0.06};
-            float speeds[4] = {1.2, 1.5, 2.1, 2.5};
+            float2 d1 = normalize(float2(1.0, 0.5));
+            float2 d2 = normalize(float2(-0.7, 0.7));
+            float2 d3 = normalize(float2(0.2, -0.9));
+            float2 d4 = normalize(float2(-0.5, -0.5));
 
-            for (int i = 0; i < 4; i++)
-            {
-                // Позиция умноженная на направление и масштаб
-                float x = dot(dirs[i], pos) * frequencies[i] * _WaveScale;
-                float t = time * speeds[i] * _WaveSpeed;
-                
-                float sinVal, cosVal;
-                sincos(x + t, sinVal, cosVal);
-                
-                // Синус дает высоту волны
-                height += sinVal * amplitudes[i];
-                
-                // Косинус дает производную (наклон волны) для расчета нормалей
-                derivatives += dirs[i] * (cosVal * amplitudes[i] * frequencies[i] * _WaveScale);
-            }
+            float f1 = 1.0, f2 = 2.3, f3 = 3.7, f4 = 5.1;
+            float a1 = 0.5, a2 = 0.25, a3 = 0.12, a4 = 0.06;
+            float s1 = 1.2, s2 = 1.5, s3 = 2.1, s4 = 2.5;
+
+            // Wave 1
+            float x = dot(d1, pos) * f1 * _WaveScale;
+            float t = time * s1 * _WaveSpeed;
+            float sinVal, cosVal;
+            sincos(x + t, sinVal, cosVal);
+            height += sinVal * a1;
+            derivatives += d1 * (cosVal * a1 * f1 * _WaveScale);
+
+            // Wave 2
+            x = dot(d2, pos) * f2 * _WaveScale;
+            t = time * s2 * _WaveSpeed;
+            sincos(x + t, sinVal, cosVal);
+            height += sinVal * a2;
+            derivatives += d2 * (cosVal * a2 * f2 * _WaveScale);
+
+            // Wave 3
+            x = dot(d3, pos) * f3 * _WaveScale;
+            t = time * s3 * _WaveSpeed;
+            sincos(x + t, sinVal, cosVal);
+            height += sinVal * a3;
+            derivatives += d3 * (cosVal * a3 * f3 * _WaveScale);
+
+            // Wave 4
+            x = dot(d4, pos) * f4 * _WaveScale;
+            t = time * s4 * _WaveSpeed;
+            sincos(x + t, sinVal, cosVal);
+            height += sinVal * a4;
+            derivatives += d4 * (cosVal * a4 * f4 * _WaveScale);
             
             return height;
         }
