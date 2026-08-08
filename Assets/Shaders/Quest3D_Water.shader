@@ -151,8 +151,15 @@ Shader "Custom/Quest3D_Style_Water"
             float depthFactor = saturate(depthDifference / _DepthMaxDistance);
             fixed4 waterColor = lerp(_ColorShallow, _ColorDeep, depthFactor);
             
-            float foamFactor = 1.0 - saturate(depthDifference / _FoamDistance);
-            foamFactor = pow(foamFactor, 2.0);
+            // === ПРОЦЕДУРНАЯ ПЕНА (Shoreline Foam) ===
+            float rawFoam = 1.0 - saturate(depthDifference / _FoamDistance);
+            
+            // Используем наш многооктавный FBM для генерации "пузырьков" пены, которые плывут по течению
+            float foamNoise = fbm(IN.worldPos.xz * 3.0 - _Time.y * 0.8);
+            
+            // smoothstep делает пену не просто градиентом, а рваными кусками (как настоящая пена, бьющаяся о скалы)
+            float foamFactor = smoothstep(0.3, 0.7, rawFoam * (foamNoise + 0.5));
+            
             fixed4 finalColor = lerp(waterColor, _FoamColor, foamFactor);
             
             // === РАСЧЕТ ПРОЦЕДУРНЫХ НОРМАЛЕЙ ===
