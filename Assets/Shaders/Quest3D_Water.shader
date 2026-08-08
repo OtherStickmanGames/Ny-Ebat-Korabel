@@ -57,11 +57,11 @@ Shader "Custom/Quest3D_Style_Water"
         half _Metallic;
 
         // === ПРОЦЕДУРНЫЙ ШУМ (Борьба с тайлингом) ===
-        // Хэш-функция генерирует псевдослучайные числа
+        // Хэш-функция Dave Hoskins (Высококачественный шум без паттернов сетки)
         float hash(float2 p) {
-            p  = frac(p * 0.3183099 + 0.1);
-            p *= 17.0;
-            return frac(p.x * p.y * (p.x + p.y));
+            float3 p3  = frac(float3(p.xyx) * .1031);
+            p3 += dot(p3, p3.yzx + 33.33);
+            return frac((p3.x + p3.y) * p3.z);
         }
 
         // Двумерный Value Noise

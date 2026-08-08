@@ -3,14 +3,60 @@ using UnityEditor;
 
 public class WaterSceneSetup : EditorWindow
 {
+    static Mesh GenerateDensePlane(float size, int segments)
+    {
+        Mesh m = new Mesh();
+        m.name = "DenseWaterPlane";
+        
+        int numVertices = (segments + 1) * (segments + 1);
+        Vector3[] vertices = new Vector3[numVertices];
+        Vector2[] uvs = new Vector2[numVertices];
+        Vector3[] normals = new Vector3[numVertices];
+        
+        for (int z = 0, i = 0; z <= segments; z++)
+        {
+            for (int x = 0; x <= segments; x++, i++)
+            {
+                vertices[i] = new Vector3((x / (float)segments - 0.5f) * size, 0, (z / (float)segments - 0.5f) * size);
+                uvs[i] = new Vector2(x / (float)segments, z / (float)segments);
+                normals[i] = Vector3.up;
+            }
+        }
+        
+        int[] triangles = new int[segments * segments * 6];
+        for (int ti = 0, vi = 0, y = 0; y < segments; y++, vi++)
+        {
+            for (int x = 0; x < segments; x++, ti += 6, vi++)
+            {
+                triangles[ti] = vi;
+                triangles[ti + 1] = vi + segments + 1;
+                triangles[ti + 2] = vi + 1;
+                triangles[ti + 3] = vi + 1;
+                triangles[ti + 4] = vi + segments + 1;
+                triangles[ti + 5] = vi + segments + 2;
+            }
+        }
+        
+        m.vertices = vertices;
+        m.uv = uvs;
+        m.normals = normals;
+        m.triangles = triangles;
+        m.RecalculateBounds();
+        return m;
+    }
+
     [MenuItem("Tools/Setup Water Test Scene")]
     public static void SetupScene()
     {
-        // 1. Create Water Plane
-        GameObject waterObj = GameObject.CreatePrimitive(PrimitiveType.Plane);
-        waterObj.name = "WaterSurface";
-        waterObj.transform.position = new Vector3(0, 0, 0);
-        waterObj.transform.localScale = new Vector3(10, 1, 10); // 100x100 meters
+        // 1. Create High-Density Water Plane
+        GameObject waterObj = new GameObject("WaterSurface");
+        waterObj.transform.position = Vector3.zero;
+        
+        MeshFilter mf = waterObj.AddComponent<MeshFilter>();
+        // Генерируем меш 100х100 метров, разбитый на 100 сегментов (10 000 вершин)
+        mf.sharedMesh = GenerateDensePlane(100f, 100); 
+        
+        MeshRenderer mr = waterObj.AddComponent<MeshRenderer>();
 
         // 2. Create Material
         Shader waterShader = Shader.Find("Custom/Quest3D_Style_Water");
