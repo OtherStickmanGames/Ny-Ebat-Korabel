@@ -11,7 +11,7 @@ Shader "Custom/Quest3D_Style_Water"
         _FoamColor ("Foam Color", Color) = (1, 1, 1, 1)
         _FoamDistance ("Foam Distance", Float) = 0.5
         
-        [Header(Procedural Waves (No Textures!))]
+        [Header(Procedural Waves)]
         _WaveSpeed ("Global Wave Speed", Float) = 1.0
         _WaveScale ("Global Wave Scale", Float) = 0.5
         _WaveStrength ("Geometry Wave Height", Float) = 0.2
